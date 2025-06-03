@@ -196,12 +196,21 @@ export const useEchoNotification = <
         "private",
     );
 
-    const events = toArray(event);
-    let listening = false;
-    let initialized = false;
+    const events = toArray(event)
+        .map((e) => {
+            if (e.includes(".")) {
+                return [e, e.replace(/\./g, "\\")];
+            }
+
+            return [e, e.replace(/\\/g, ".")];
+        })
+        .flat();
+
+    const listening = ref(false);
+    const initialized = ref(false);
 
     const cb = (notification: BroadcastNotification<TPayload>) => {
-        if (!listening) {
+        if (!listening.value) {
             return;
         }
 
@@ -211,24 +220,24 @@ export const useEchoNotification = <
     };
 
     const listen = () => {
-        if (listening) {
+        if (listening.value) {
             return;
         }
 
-        if (!initialized) {
+        if (!initialized.value) {
             result.channel().notification(cb);
         }
 
-        listening = true;
-        initialized = true;
+        listening.value = true;
+        initialized.value = true;
     };
 
     const stopListening = () => {
-        if (!listening) {
+        if (!listening.value) {
             return;
         }
 
-        listening = false;
+        listening.value = false;
     };
 
     onMounted(() => {

@@ -181,7 +181,17 @@ export const useEchoNotification = <
         "private",
     );
 
-    const events = toArray(event);
+    const events = useRef(
+        toArray(event)
+            .map((e) => {
+                if (e.includes(".")) {
+                    return [e, e.replace(/\./g, "\\")];
+                }
+
+                return [e, e.replace(/\\/g, ".")];
+            })
+            .flat(),
+    );
     const listening = useRef(false);
     const initialized = useRef(false);
 
@@ -191,11 +201,14 @@ export const useEchoNotification = <
                 return;
             }
 
-            if (events.length === 0 || events.includes(notification.type)) {
+            if (
+                events.current.length === 0 ||
+                events.current.includes(notification.type)
+            ) {
                 callback(notification);
             }
         },
-        dependencies.concat(events).concat([callback]),
+        dependencies.concat(events.current).concat([callback]),
     );
 
     const listen = useCallback(() => {
@@ -221,7 +234,7 @@ export const useEchoNotification = <
 
     useEffect(() => {
         listen();
-    }, dependencies.concat(events));
+    }, dependencies.concat(events.current));
 
     return {
         ...result,

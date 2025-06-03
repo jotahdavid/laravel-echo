@@ -849,6 +849,43 @@ describe("useEchoNotification hook", async () => {
         expect(mockCallback).not.toHaveBeenCalledWith(notification3);
     });
 
+    it("handles dotted and slashed notification event types", async () => {
+        const mockCallback = vi.fn();
+        const channelName = "test-channel";
+        const events = [
+            "App.Notifications.First",
+            "App\\Notifications\\Second",
+        ];
+
+        wrapper = getNotificationTestComponent(
+            channelName,
+            mockCallback,
+            events,
+        );
+
+        const channel = echoInstance.private(channelName);
+        expect(channel.notification).toHaveBeenCalled();
+
+        const notificationCallback = vi.mocked(channel.notification).mock
+            .calls[0][0];
+
+        const notification1 = {
+            type: "App\\Notifications\\First",
+            data: {},
+        };
+        const notification2 = {
+            type: "App\\Notifications\\Second",
+            data: {},
+        };
+
+        notificationCallback(notification1);
+        notificationCallback(notification2);
+
+        expect(mockCallback).toHaveBeenCalledWith(notification1);
+        expect(mockCallback).toHaveBeenCalledWith(notification2);
+        expect(mockCallback).toHaveBeenCalledTimes(2);
+    });
+
     it("accepts all notifications when no event types specified", async () => {
         const mockCallback = vi.fn();
         const channelName = "test-channel";
