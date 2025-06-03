@@ -1,6 +1,15 @@
 # Release Notes
 
-## [Unreleased](https://github.com/laravel/echo/compare/v2.1.4...2.x)
+## [Unreleased](https://github.com/laravel/echo/compare/v2.1.5...2.x)
+
+## [v2.1.5](https://github.com/laravel/echo/compare/v2.1.4...v2.1.5) - 2025-06-03
+
+### What's Changed
+
+* Revert CSRF logic by [@joetannenbaum](https://github.com/joetannenbaum) in https://github.com/laravel/echo/pull/442
+* Added useEchoNotification hook by [@joetannenbaum](https://github.com/joetannenbaum) in https://github.com/laravel/echo/pull/443
+
+**Full Changelog**: https://github.com/laravel/echo/compare/v2.1.4...v2.1.5
 
 ## [v2.1.4](https://github.com/laravel/echo/compare/v2.1.3...v2.1.4) - 2025-05-15
 
