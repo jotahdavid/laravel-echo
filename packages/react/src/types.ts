@@ -16,6 +16,8 @@ export type Channel = {
     visibility: "private" | "public" | "presence";
 };
 
+export type Notification<TPayload> = TPayload & { id: string; type: string };
+
 export type ChannelReturnType<
     T extends BroadcastDriver,
     V extends Channel["visibility"],

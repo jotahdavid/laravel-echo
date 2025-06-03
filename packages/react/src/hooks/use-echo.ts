@@ -8,6 +8,7 @@ import type {
     Connection,
     ModelEvents,
     ModelPayload,
+    Notification,
 } from "../types";
 import { toArray } from "../util";
 
@@ -160,6 +161,78 @@ export const useEcho = <
          */
         channel: () =>
             subscription.current as ChannelReturnType<TDriver, TVisibility>,
+    };
+};
+
+export const useEchoNotification = <
+    TPayload,
+    TDriver extends BroadcastDriver = BroadcastDriver,
+>(
+    channelName: string,
+    callback: (payload: Notification<TPayload>) => void = () => {},
+    event: string | string[] = [],
+    dependencies: any[] = [],
+) => {
+    const result = useEcho<Notification<TPayload>, TDriver, "private">(
+        channelName,
+        [],
+        callback,
+        dependencies,
+        "private",
+    );
+
+    const events = toArray(event);
+    const listening = useRef(false);
+    const initialized = useRef(false);
+
+    const cb = useCallback(
+        (notification: Notification<TPayload>) => {
+            if (!listening.current) {
+                return;
+            }
+
+            if (events.length === 0 || events.includes(notification.type)) {
+                callback(notification);
+            }
+        },
+        dependencies.concat(events).concat([callback]),
+    );
+
+    const listen = useCallback(() => {
+        if (listening.current) {
+            return;
+        }
+
+        if (!initialized.current) {
+            result.channel().notification(cb);
+        }
+
+        listening.current = true;
+        initialized.current = true;
+    }, [cb]);
+
+    const stopListening = useCallback(() => {
+        if (!listening.current) {
+            return;
+        }
+
+        listening.current = false;
+    }, [cb]);
+
+    useEffect(() => {
+        listen();
+    }, dependencies.concat(events));
+
+    return {
+        ...result,
+        /**
+         * Stop listening for notification events
+         */
+        stopListening,
+        /**
+         * Listen for notification events
+         */
+        listen,
     };
 };
 
