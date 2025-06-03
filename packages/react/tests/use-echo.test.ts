@@ -10,6 +10,7 @@ vi.mock("laravel-echo", () => {
         leaveChannel: vi.fn(),
         listen: vi.fn(),
         stopListening: vi.fn(),
+        notification: vi.fn(),
     };
 
     const mockPublicChannel = {
@@ -848,6 +849,264 @@ describe("useEchoPresence hook", async () => {
 
         const { result } = renderHook(() =>
             echoModule.useEchoPresence(channelName),
+        );
+
+        expect(result.current).toHaveProperty("channel");
+        expect(result.current.channel).not.toBeNull();
+    });
+});
+
+describe("useEchoNotification hook", async () => {
+    let echoModule: typeof import("../src/hooks/use-echo");
+    let configModule: typeof import("../src/config/index");
+    let echoInstance: Echo<"null">;
+
+    beforeEach(async () => {
+        vi.resetModules();
+
+        echoInstance = new Echo({
+            broadcaster: "null",
+        });
+
+        echoModule = await getEchoModule();
+        configModule = await getConfigModule();
+
+        configModule.configureEcho({
+            broadcaster: "null",
+        });
+    });
+
+    afterEach(() => {
+        vi.clearAllMocks();
+    });
+
+    it("subscribes to a private channel and listens for notifications", async () => {
+        const mockCallback = vi.fn();
+        const channelName = "test-channel";
+
+        const { result } = renderHook(() =>
+            echoModule.useEchoNotification(channelName, mockCallback),
+        );
+
+        expect(result.current).toHaveProperty("leaveChannel");
+        expect(typeof result.current.leave).toBe("function");
+        expect(result.current).toHaveProperty("leave");
+        expect(typeof result.current.leaveChannel).toBe("function");
+        expect(result.current).toHaveProperty("listen");
+        expect(typeof result.current.listen).toBe("function");
+        expect(result.current).toHaveProperty("stopListening");
+        expect(typeof result.current.stopListening).toBe("function");
+    });
+
+    it("sets up a notification listener on a channel", async () => {
+        const mockCallback = vi.fn();
+        const channelName = "test-channel";
+
+        renderHook(() =>
+            echoModule.useEchoNotification(channelName, mockCallback),
+        );
+
+        expect(echoInstance.private).toHaveBeenCalledWith(channelName);
+
+        const channel = echoInstance.private(channelName);
+        expect(channel.notification).toHaveBeenCalled();
+    });
+
+    it("handles notification filtering by event type", async () => {
+        const mockCallback = vi.fn();
+        const channelName = "test-channel";
+        const eventType = "specific-type";
+
+        renderHook(() =>
+            echoModule.useEchoNotification(
+                channelName,
+                mockCallback,
+                eventType,
+            ),
+        );
+
+        const channel = echoInstance.private(channelName);
+        expect(channel.notification).toHaveBeenCalled();
+
+        const notificationCallback = vi.mocked(channel.notification).mock
+            .calls[0][0];
+
+        const matchingNotification = {
+            type: eventType,
+            data: { message: "test" },
+        };
+        const nonMatchingNotification = {
+            type: "other-type",
+            data: { message: "test" },
+        };
+
+        notificationCallback(matchingNotification);
+        notificationCallback(nonMatchingNotification);
+
+        expect(mockCallback).toHaveBeenCalledWith(matchingNotification);
+        expect(mockCallback).toHaveBeenCalledTimes(1);
+        expect(mockCallback).not.toHaveBeenCalledWith(nonMatchingNotification);
+    });
+
+    it("handles multiple notification event types", async () => {
+        const mockCallback = vi.fn();
+        const channelName = "test-channel";
+        const events = ["type1", "type2"];
+
+        renderHook(() =>
+            echoModule.useEchoNotification(channelName, mockCallback, events),
+        );
+
+        const channel = echoInstance.private(channelName);
+        expect(channel.notification).toHaveBeenCalled();
+
+        const notificationCallback = vi.mocked(channel.notification).mock
+            .calls[0][0];
+
+        const notification1 = { type: events[0], data: {} };
+        const notification2 = { type: events[1], data: {} };
+        const notification3 = { type: "type3", data: {} };
+
+        notificationCallback(notification1);
+        notificationCallback(notification2);
+        notificationCallback(notification3);
+
+        expect(mockCallback).toHaveBeenCalledWith(notification1);
+        expect(mockCallback).toHaveBeenCalledWith(notification2);
+        expect(mockCallback).toHaveBeenCalledTimes(2);
+        expect(mockCallback).not.toHaveBeenCalledWith(notification3);
+    });
+
+    it("accepts all notifications when no event types specified", async () => {
+        const mockCallback = vi.fn();
+        const channelName = "test-channel";
+
+        renderHook(() =>
+            echoModule.useEchoNotification(channelName, mockCallback),
+        );
+
+        const channel = echoInstance.private(channelName);
+        expect(channel.notification).toHaveBeenCalled();
+
+        const notificationCallback = vi.mocked(channel.notification).mock
+            .calls[0][0];
+
+        const notification1 = { type: "type1", data: {} };
+        const notification2 = { type: "type2", data: {} };
+
+        notificationCallback(notification1);
+        notificationCallback(notification2);
+
+        expect(mockCallback).toHaveBeenCalledWith(notification1);
+        expect(mockCallback).toHaveBeenCalledWith(notification2);
+
+        expect(mockCallback).toHaveBeenCalledTimes(2);
+    });
+
+    it("cleans up subscriptions on unmount", async () => {
+        const mockCallback = vi.fn();
+        const channelName = "test-channel";
+
+        const { unmount } = renderHook(() =>
+            echoModule.useEchoNotification(channelName, mockCallback),
+        );
+
+        expect(echoInstance.private).toHaveBeenCalledWith(channelName);
+
+        expect(() => unmount()).not.toThrow();
+
+        expect(echoInstance.leaveChannel).toHaveBeenCalledWith(
+            `private-${channelName}`,
+        );
+    });
+
+    it("won't subscribe multiple times to the same channel", async () => {
+        const mockCallback = vi.fn();
+        const channelName = "test-channel";
+
+        const { unmount: unmount1 } = renderHook(() =>
+            echoModule.useEchoNotification(channelName, mockCallback),
+        );
+
+        const { unmount: unmount2 } = renderHook(() =>
+            echoModule.useEchoNotification(channelName, mockCallback),
+        );
+
+        expect(echoInstance.private).toHaveBeenCalledTimes(1);
+
+        expect(() => unmount1()).not.toThrow();
+        expect(echoInstance.leaveChannel).not.toHaveBeenCalled();
+
+        expect(() => unmount2()).not.toThrow();
+        expect(echoInstance.leaveChannel).toHaveBeenCalledWith(
+            `private-${channelName}`,
+        );
+    });
+
+    it("can leave a channel", async () => {
+        const mockCallback = vi.fn();
+        const channelName = "test-channel";
+
+        const { result } = renderHook(() =>
+            echoModule.useEchoNotification(channelName, mockCallback),
+        );
+
+        result.current.leaveChannel();
+
+        expect(echoInstance.leaveChannel).toHaveBeenCalledWith(
+            `private-${channelName}`,
+        );
+    });
+
+    it("can leave all channel variations", async () => {
+        const mockCallback = vi.fn();
+        const channelName = "test-channel";
+
+        const { result } = renderHook(() =>
+            echoModule.useEchoNotification(channelName, mockCallback),
+        );
+
+        result.current.leave();
+
+        expect(echoInstance.leave).toHaveBeenCalledWith(channelName);
+    });
+
+    it("can manually start and stop listening", async () => {
+        const mockCallback = vi.fn();
+        const channelName = "test-channel";
+
+        const { result } = renderHook(() =>
+            echoModule.useEchoNotification(channelName, mockCallback),
+        );
+
+        const channel = echoInstance.private(channelName);
+        expect(channel.notification).toHaveBeenCalledTimes(1);
+
+        result.current.stopListening();
+        result.current.listen();
+
+        expect(channel.notification).toHaveBeenCalledTimes(1);
+    });
+
+    it("stopListening prevents new notification listeners", async () => {
+        const mockCallback = vi.fn();
+        const channelName = "test-channel";
+
+        const { result } = renderHook(() =>
+            echoModule.useEchoNotification(channelName, mockCallback),
+        );
+
+        result.current.stopListening();
+
+        expect(result.current.stopListening).toBeDefined();
+        expect(typeof result.current.stopListening).toBe("function");
+    });
+
+    it("callback and events are optional", async () => {
+        const channelName = "test-channel";
+
+        const { result } = renderHook(() =>
+            echoModule.useEchoNotification(channelName),
         );
 
         expect(result.current).toHaveProperty("channel");
