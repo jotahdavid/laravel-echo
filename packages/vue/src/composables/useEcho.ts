@@ -2,6 +2,7 @@ import { type BroadcastDriver } from "laravel-echo";
 import { onMounted, onUnmounted, ref, watch } from "vue";
 import { echo } from "../config";
 import type {
+    BroadcastNotification,
     Channel,
     ChannelData,
     ChannelReturnType,
@@ -175,6 +176,84 @@ export const useEcho = <
          * Channel instance
          */
         channel: () => subscription as ChannelReturnType<TDriver, TVisibility>,
+    };
+};
+
+export const useEchoNotification = <
+    TPayload,
+    TDriver extends BroadcastDriver = BroadcastDriver,
+>(
+    channelName: string,
+    callback: (payload: BroadcastNotification<TPayload>) => void = () => {},
+    event: string | string[] = [],
+    dependencies: any[] = [],
+) => {
+    const result = useEcho<BroadcastNotification<TPayload>, TDriver, "private">(
+        channelName,
+        [],
+        callback,
+        dependencies,
+        "private",
+    );
+
+    const events = toArray(event)
+        .map((e) => {
+            if (e.includes(".")) {
+                return [e, e.replace(/\./g, "\\")];
+            }
+
+            return [e, e.replace(/\\/g, ".")];
+        })
+        .flat();
+
+    const listening = ref(false);
+    const initialized = ref(false);
+
+    const cb = (notification: BroadcastNotification<TPayload>) => {
+        if (!listening.value) {
+            return;
+        }
+
+        if (events.length === 0 || events.includes(notification.type)) {
+            callback(notification);
+        }
+    };
+
+    const listen = () => {
+        if (listening.value) {
+            return;
+        }
+
+        if (!initialized.value) {
+            result.channel().notification(cb);
+        }
+
+        listening.value = true;
+        initialized.value = true;
+    };
+
+    const stopListening = () => {
+        if (!listening.value) {
+            return;
+        }
+
+        listening.value = false;
+    };
+
+    onMounted(() => {
+        listen();
+    });
+
+    return {
+        ...result,
+        /**
+         * Stop listening for notification events
+         */
+        stopListening,
+        /**
+         * Listen for notification events
+         */
+        listen,
     };
 };
 

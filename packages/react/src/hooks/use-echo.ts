@@ -2,6 +2,7 @@ import { type BroadcastDriver } from "laravel-echo";
 import { useCallback, useEffect, useRef } from "react";
 import { echo } from "../config";
 import type {
+    BroadcastNotification,
     Channel,
     ChannelData,
     ChannelReturnType,
@@ -160,6 +161,91 @@ export const useEcho = <
          */
         channel: () =>
             subscription.current as ChannelReturnType<TDriver, TVisibility>,
+    };
+};
+
+export const useEchoNotification = <
+    TPayload,
+    TDriver extends BroadcastDriver = BroadcastDriver,
+>(
+    channelName: string,
+    callback: (payload: BroadcastNotification<TPayload>) => void = () => {},
+    event: string | string[] = [],
+    dependencies: any[] = [],
+) => {
+    const result = useEcho<BroadcastNotification<TPayload>, TDriver, "private">(
+        channelName,
+        [],
+        callback,
+        dependencies,
+        "private",
+    );
+
+    const events = useRef(
+        toArray(event)
+            .map((e) => {
+                if (e.includes(".")) {
+                    return [e, e.replace(/\./g, "\\")];
+                }
+
+                return [e, e.replace(/\\/g, ".")];
+            })
+            .flat(),
+    );
+    const listening = useRef(false);
+    const initialized = useRef(false);
+
+    const cb = useCallback(
+        (notification: BroadcastNotification<TPayload>) => {
+            if (!listening.current) {
+                return;
+            }
+
+            if (
+                events.current.length === 0 ||
+                events.current.includes(notification.type)
+            ) {
+                callback(notification);
+            }
+        },
+        dependencies.concat(events.current).concat([callback]),
+    );
+
+    const listen = useCallback(() => {
+        if (listening.current) {
+            return;
+        }
+
+        if (!initialized.current) {
+            result.channel().notification(cb);
+        }
+
+        listening.current = true;
+        initialized.current = true;
+    }, [cb]);
+
+    const stopListening = useCallback(() => {
+        if (!listening.current) {
+            return;
+        }
+
+        listening.current = false;
+    }, [cb]);
+
+    useEffect(() => {
+        listen();
+    }, dependencies.concat(events.current));
+
+    return {
+        ...result,
+        /**
+         * Stop listening for notification events
+         */
+        stopListening,
+        /**
+         * Listen for notification events
+         */
+        listen,
     };
 };
 

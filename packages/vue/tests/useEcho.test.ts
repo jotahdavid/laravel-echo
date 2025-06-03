@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { defineComponent } from "vue";
 import {
     useEcho,
+    useEchoNotification,
     useEchoPresence,
     useEchoPublic,
 } from "../src/composables/useEcho";
@@ -100,11 +101,39 @@ const getPresenceTestComponent = (
     return mount(TestComponent);
 };
 
+const getNotificationTestComponent = (
+    channelName: string,
+    callback: ((data: any) => void) | undefined,
+    event: string | string[] | undefined,
+    dependencies: any[] = [],
+) => {
+    const TestComponent = defineComponent({
+        setup() {
+            configureEcho({
+                broadcaster: "null",
+            });
+
+            return {
+                ...useEchoNotification(
+                    channelName,
+                    callback,
+                    event,
+                    dependencies,
+                ),
+            };
+        },
+        template: "<div></div>",
+    });
+
+    return mount(TestComponent);
+};
+
 vi.mock("laravel-echo", () => {
     const mockPrivateChannel = {
         leaveChannel: vi.fn(),
         listen: vi.fn(),
         stopListening: vi.fn(),
+        notification: vi.fn(),
     };
 
     const mockPublicChannel = {
@@ -694,6 +723,317 @@ describe("useEchoPresence hook", async () => {
         const channelName = "test-channel";
 
         wrapper = getPresenceTestComponent(channelName, undefined, undefined);
+
+        expect(wrapper.vm.channel).not.toBeNull();
+    });
+});
+
+describe("useEchoNotification hook", async () => {
+    let echoInstance: Echo<"null">;
+    let wrapper: ReturnType<typeof getNotificationTestComponent>;
+
+    beforeEach(async () => {
+        vi.resetModules();
+
+        echoInstance = new Echo({
+            broadcaster: "null",
+        });
+    });
+
+    afterEach(() => {
+        wrapper.unmount();
+        vi.clearAllMocks();
+    });
+
+    it("subscribes to a private channel and listens for notifications", async () => {
+        const mockCallback = vi.fn();
+        const channelName = "test-channel";
+
+        wrapper = getNotificationTestComponent(
+            channelName,
+            mockCallback,
+            undefined,
+        );
+
+        expect(wrapper.vm).toHaveProperty("leaveChannel");
+        expect(typeof wrapper.vm.leaveChannel).toBe("function");
+
+        expect(wrapper.vm).toHaveProperty("leave");
+        expect(typeof wrapper.vm.leave).toBe("function");
+
+        expect(wrapper.vm).toHaveProperty("listen");
+        expect(typeof wrapper.vm.listen).toBe("function");
+
+        expect(wrapper.vm).toHaveProperty("stopListening");
+        expect(typeof wrapper.vm.stopListening).toBe("function");
+    });
+
+    it("sets up a notification listener on a channel", async () => {
+        const mockCallback = vi.fn();
+        const channelName = "test-channel";
+
+        wrapper = getNotificationTestComponent(
+            channelName,
+            mockCallback,
+            undefined,
+        );
+
+        expect(echoInstance.private).toHaveBeenCalledWith(channelName);
+
+        const channel = echoInstance.private(channelName);
+        expect(channel.notification).toHaveBeenCalled();
+    });
+
+    it("handles notification filtering by event type", async () => {
+        const mockCallback = vi.fn();
+        const channelName = "test-channel";
+        const eventType = "specific-type";
+
+        wrapper = getNotificationTestComponent(
+            channelName,
+            mockCallback,
+            eventType,
+        );
+
+        const channel = echoInstance.private(channelName);
+        expect(channel.notification).toHaveBeenCalled();
+
+        const notificationCallback = vi.mocked(channel.notification).mock
+            .calls[0][0];
+
+        const matchingNotification = {
+            type: eventType,
+            data: { message: "test" },
+        };
+        const nonMatchingNotification = {
+            type: "other-type",
+            data: { message: "test" },
+        };
+
+        notificationCallback(matchingNotification);
+        notificationCallback(nonMatchingNotification);
+
+        expect(mockCallback).toHaveBeenCalledWith(matchingNotification);
+        expect(mockCallback).toHaveBeenCalledTimes(1);
+        expect(mockCallback).not.toHaveBeenCalledWith(nonMatchingNotification);
+    });
+
+    it("handles multiple notification event types", async () => {
+        const mockCallback = vi.fn();
+        const channelName = "test-channel";
+        const events = ["type1", "type2"];
+
+        wrapper = getNotificationTestComponent(
+            channelName,
+            mockCallback,
+            events,
+        );
+
+        const channel = echoInstance.private(channelName);
+        expect(channel.notification).toHaveBeenCalled();
+
+        const notificationCallback = vi.mocked(channel.notification).mock
+            .calls[0][0];
+
+        const notification1 = { type: events[0], data: {} };
+        const notification2 = { type: events[1], data: {} };
+        const notification3 = { type: "type3", data: {} };
+
+        notificationCallback(notification1);
+        notificationCallback(notification2);
+        notificationCallback(notification3);
+
+        expect(mockCallback).toHaveBeenCalledWith(notification1);
+        expect(mockCallback).toHaveBeenCalledWith(notification2);
+        expect(mockCallback).toHaveBeenCalledTimes(2);
+        expect(mockCallback).not.toHaveBeenCalledWith(notification3);
+    });
+
+    it("handles dotted and slashed notification event types", async () => {
+        const mockCallback = vi.fn();
+        const channelName = "test-channel";
+        const events = [
+            "App.Notifications.First",
+            "App\\Notifications\\Second",
+        ];
+
+        wrapper = getNotificationTestComponent(
+            channelName,
+            mockCallback,
+            events,
+        );
+
+        const channel = echoInstance.private(channelName);
+        expect(channel.notification).toHaveBeenCalled();
+
+        const notificationCallback = vi.mocked(channel.notification).mock
+            .calls[0][0];
+
+        const notification1 = {
+            type: "App\\Notifications\\First",
+            data: {},
+        };
+        const notification2 = {
+            type: "App\\Notifications\\Second",
+            data: {},
+        };
+
+        notificationCallback(notification1);
+        notificationCallback(notification2);
+
+        expect(mockCallback).toHaveBeenCalledWith(notification1);
+        expect(mockCallback).toHaveBeenCalledWith(notification2);
+        expect(mockCallback).toHaveBeenCalledTimes(2);
+    });
+
+    it("accepts all notifications when no event types specified", async () => {
+        const mockCallback = vi.fn();
+        const channelName = "test-channel";
+
+        wrapper = getNotificationTestComponent(
+            channelName,
+            mockCallback,
+            undefined,
+        );
+
+        const channel = echoInstance.private(channelName);
+        expect(channel.notification).toHaveBeenCalled();
+
+        const notificationCallback = vi.mocked(channel.notification).mock
+            .calls[0][0];
+
+        const notification1 = { type: "type1", data: {} };
+        const notification2 = { type: "type2", data: {} };
+
+        notificationCallback(notification1);
+        notificationCallback(notification2);
+
+        expect(mockCallback).toHaveBeenCalledWith(notification1);
+        expect(mockCallback).toHaveBeenCalledWith(notification2);
+        expect(mockCallback).toHaveBeenCalledTimes(2);
+    });
+
+    it("cleans up subscriptions on unmount", async () => {
+        const mockCallback = vi.fn();
+        const channelName = "test-channel";
+
+        wrapper = getNotificationTestComponent(
+            channelName,
+            mockCallback,
+            undefined,
+        );
+
+        expect(echoInstance.private).toHaveBeenCalledWith(channelName);
+
+        wrapper.unmount();
+
+        expect(echoInstance.leaveChannel).toHaveBeenCalledWith(
+            `private-${channelName}`,
+        );
+    });
+
+    it("won't subscribe multiple times to the same channel", async () => {
+        const mockCallback = vi.fn();
+        const channelName = "test-channel";
+
+        wrapper = getNotificationTestComponent(
+            channelName,
+            mockCallback,
+            undefined,
+        );
+
+        const wrapper2 = getNotificationTestComponent(
+            channelName,
+            mockCallback,
+            undefined,
+        );
+
+        expect(echoInstance.private).toHaveBeenCalledTimes(1);
+
+        wrapper.unmount();
+        expect(echoInstance.leaveChannel).not.toHaveBeenCalled();
+
+        wrapper2.unmount();
+        expect(echoInstance.leaveChannel).toHaveBeenCalledWith(
+            `private-${channelName}`,
+        );
+    });
+
+    it("can leave a channel", async () => {
+        const mockCallback = vi.fn();
+        const channelName = "test-channel";
+
+        wrapper = getNotificationTestComponent(
+            channelName,
+            mockCallback,
+            undefined,
+        );
+
+        wrapper.vm.leaveChannel();
+
+        expect(echoInstance.leaveChannel).toHaveBeenCalledWith(
+            `private-${channelName}`,
+        );
+    });
+
+    it("can leave all channel variations", async () => {
+        const mockCallback = vi.fn();
+        const channelName = "test-channel";
+
+        wrapper = getNotificationTestComponent(
+            channelName,
+            mockCallback,
+            undefined,
+        );
+
+        wrapper.vm.leave();
+
+        expect(echoInstance.leave).toHaveBeenCalledWith(channelName);
+    });
+
+    it("can manually start and stop listening", async () => {
+        const mockCallback = vi.fn();
+        const channelName = "test-channel";
+
+        wrapper = getNotificationTestComponent(
+            channelName,
+            mockCallback,
+            undefined,
+        );
+
+        const channel = echoInstance.private(channelName);
+        expect(channel.notification).toHaveBeenCalledTimes(1);
+
+        wrapper.vm.stopListening();
+        wrapper.vm.listen();
+
+        expect(channel.notification).toHaveBeenCalledTimes(1);
+    });
+
+    it("stopListening prevents new notification listeners", async () => {
+        const mockCallback = vi.fn();
+        const channelName = "test-channel";
+
+        wrapper = getNotificationTestComponent(
+            channelName,
+            mockCallback,
+            undefined,
+        );
+
+        wrapper.vm.stopListening();
+
+        expect(wrapper.vm.stopListening).toBeDefined();
+        expect(typeof wrapper.vm.stopListening).toBe("function");
+    });
+
+    it("callback and events are optional", async () => {
+        const channelName = "test-channel";
+
+        wrapper = getNotificationTestComponent(
+            channelName,
+            undefined,
+            undefined,
+        );
 
         expect(wrapper.vm.channel).not.toBeNull();
     });
