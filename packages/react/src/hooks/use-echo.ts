@@ -2,13 +2,13 @@ import { type BroadcastDriver } from "laravel-echo";
 import { useCallback, useEffect, useRef } from "react";
 import { echo } from "../config";
 import type {
+    BroadcastNotification,
     Channel,
     ChannelData,
     ChannelReturnType,
     Connection,
     ModelEvents,
     ModelPayload,
-    Notification,
 } from "../types";
 import { toArray } from "../util";
 
@@ -169,11 +169,11 @@ export const useEchoNotification = <
     TDriver extends BroadcastDriver = BroadcastDriver,
 >(
     channelName: string,
-    callback: (payload: Notification<TPayload>) => void = () => {},
+    callback: (payload: BroadcastNotification<TPayload>) => void = () => {},
     event: string | string[] = [],
     dependencies: any[] = [],
 ) => {
-    const result = useEcho<Notification<TPayload>, TDriver, "private">(
+    const result = useEcho<BroadcastNotification<TPayload>, TDriver, "private">(
         channelName,
         [],
         callback,
@@ -186,7 +186,7 @@ export const useEchoNotification = <
     const initialized = useRef(false);
 
     const cb = useCallback(
-        (notification: Notification<TPayload>) => {
+        (notification: BroadcastNotification<TPayload>) => {
             if (!listening.current) {
                 return;
             }

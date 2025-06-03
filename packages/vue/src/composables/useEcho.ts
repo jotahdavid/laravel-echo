@@ -2,6 +2,7 @@ import { type BroadcastDriver } from "laravel-echo";
 import { onMounted, onUnmounted, ref, watch } from "vue";
 import { echo } from "../config";
 import type {
+    BroadcastNotification,
     Channel,
     ChannelData,
     ChannelReturnType,
@@ -175,6 +176,75 @@ export const useEcho = <
          * Channel instance
          */
         channel: () => subscription as ChannelReturnType<TDriver, TVisibility>,
+    };
+};
+
+export const useEchoNotification = <
+    TPayload,
+    TDriver extends BroadcastDriver = BroadcastDriver,
+>(
+    channelName: string,
+    callback: (payload: BroadcastNotification<TPayload>) => void = () => {},
+    event: string | string[] = [],
+    dependencies: any[] = [],
+) => {
+    const result = useEcho<BroadcastNotification<TPayload>, TDriver, "private">(
+        channelName,
+        [],
+        callback,
+        dependencies,
+        "private",
+    );
+
+    const events = toArray(event);
+    let listening = false;
+    let initialized = false;
+
+    const cb = (notification: BroadcastNotification<TPayload>) => {
+        if (!listening) {
+            return;
+        }
+
+        if (events.length === 0 || events.includes(notification.type)) {
+            callback(notification);
+        }
+    };
+
+    const listen = () => {
+        if (listening) {
+            return;
+        }
+
+        if (!initialized) {
+            result.channel().notification(cb);
+        }
+
+        listening = true;
+        initialized = true;
+    };
+
+    const stopListening = () => {
+        if (!listening) {
+            return;
+        }
+
+        listening = false;
+    };
+
+    onMounted(() => {
+        listen();
+    });
+
+    return {
+        ...result,
+        /**
+         * Stop listening for notification events
+         */
+        stopListening,
+        /**
+         * Listen for notification events
+         */
+        listen,
     };
 };
 

@@ -1,6 +1,7 @@
 export {
     useEcho,
     useEchoModel,
+    useEchoNotification,
     useEchoPresence,
     useEchoPublic,
 } from "./composables/useEcho";
