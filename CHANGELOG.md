@@ -1,6 +1,10 @@
 # Release Notes
 
-## [Unreleased](https://github.com/laravel/echo/compare/v2.1.5...2.x)
+## [Unreleased](https://github.com/laravel/echo/compare/v2.1.6...2.x)
+
+## [v2.1.6](https://github.com/laravel/echo/compare/v2.1.5...v2.1.6) - 2025-06-17
+
+* Fix subscriptions not being restored on reconnect by [@electron93](https://github.com/electron93) in https://github.com/laravel/echo/pull/446
 
 ## [v2.1.5](https://github.com/laravel/echo/compare/v2.1.4...v2.1.5) - 2025-06-03
 
