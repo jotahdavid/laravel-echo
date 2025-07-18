@@ -82,3 +82,5 @@ export const configureEcho = <T extends BroadcastDriver>(
 
 export const echo = <T extends BroadcastDriver>(): Echo<T> =>
     getEchoInstance<T>();
+
+export const echoIsConfigured = () => echoConfig !== null;

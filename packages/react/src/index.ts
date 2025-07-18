@@ -1,4 +1,4 @@
-export { configureEcho, echo } from "./config/index";
+export { configureEcho, echo, echoIsConfigured } from "./config/index";
 export {
     useEcho,
     useEchoModel,

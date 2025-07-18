@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-
 describe("echo helper", async () => {
     beforeEach(() => {
         vi.resetModules();
@@ -27,14 +26,15 @@ describe("echo helper", async () => {
     });
 
     it("checks if Echo is configured", async () => {
-        const { configureEcho, isEchoConfigured } = await import("../src/config");
+        const { configureEcho, echoIsConfigured: echoIsConfigured } =
+            await import("../src/config");
 
-        expect(isEchoConfigured()).toBe(false);
+        expect(echoIsConfigured()).toBe(false);
 
         configureEcho({
             broadcaster: "null",
         });
 
-        expect(isEchoConfigured()).toBe(true);
+        expect(echoIsConfigured()).toBe(true);
     });
 });
