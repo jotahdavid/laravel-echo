@@ -23,6 +23,8 @@ const getEchoInstance = <T extends BroadcastDriver>(): Echo<T> => {
     return echoInstance as Echo<T>;
 };
 
+export const isEchoConfigured = () => echoConfig !== null;
+
 /**
  * Configure the Echo instance with sensible defaults.
  *
